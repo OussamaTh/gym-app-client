@@ -6,10 +6,10 @@ import { Calendar } from '@/components/calendar';
 import { ExerciseCard } from '@/components/exercise-card';
 import { Stat } from '@/components/ui';
 import { C, COMMON_EXERCISES } from '@/constants/gym';
-import { dateKey, lastEntry, num, parseKey, useGym } from '@/store/gym-store';
+import { dateKey, lastEntry, num, parseKey, rowsOf, useGym } from '@/store/gym-store';
 
 export default function Train() {
-  const { data, addPlan, removePlan, setLog } = useGym();
+  const { data, addPlan, removePlan, addVariation, removeVariation, setLog } = useGym();
   const [day, setSelected] = useState(dateKey(new Date()));
   const [name, setName] = useState('');
   const [editing, setEditing] = useState(false);
@@ -21,9 +21,10 @@ export default function Train() {
   const entries = data.logs[day] ?? {};
   const marked = useMemo(() => Object.fromEntries(Object.keys(data.logs).map((k) => [k, true])), [data.logs]);
 
-  const sets = plan.reduce((a, p) => a + (parseInt(entries[p.id]?.sets) || 0), 0);
-  const volume = plan.reduce((a, p) => {
-    const e = entries[p.id];
+  const rows = plan.flatMap(rowsOf);
+  const sets = rows.reduce((a, r) => a + (parseInt(entries[r.id]?.sets) || 0), 0);
+  const volume = rows.reduce((a, r) => {
+    const e = entries[r.id];
     return a + (e ? num(e.weight) * (parseInt(e.sets) || 0) * (parseInt(e.reps) || 0) : 0);
   }, 0);
 
@@ -106,10 +107,12 @@ export default function Train() {
               {plan.map((p) => (
                 <ExerciseCard
                   key={p.id}
-                  name={p.name}
-                  value={entries[p.id]}
-                  last={lastEntry(data.logs, p.name, day)}
-                  onChange={(patch) => setLog(day, p, patch)}
+                  item={p}
+                  entries={entries}
+                  lastFor={(n) => lastEntry(data.logs, n, day)}
+                  onChange={(row, patch) => setLog(day, row, patch)}
+                  onAddVariation={(n) => addVariation(weekday, p.id, n)}
+                  onRemoveVariation={(id) => removeVariation(weekday, p.id, id)}
                 />
               ))}
             </>
