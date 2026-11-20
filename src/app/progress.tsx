@@ -3,22 +3,23 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart, Stat } from '@/components/ui';
 import { C } from '@/constants/gym';
-import { history, num, parseKey, useGym } from '@/store/gym-store';
+import { history, num, parseKey } from '@/store/gym-store';
+import { useAppSelector } from '@/store/hooks';
 
 const short = (k: string) => parseKey(k).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 
 export default function Progress() {
-    const { data } = useGym();
+    const logs = useAppSelector((s) => s.tracker.logs);
     const names = useMemo(() => {
         const seen = new Map<string, string>();
-        Object.values(data.logs).forEach((day) =>
+        Object.values(logs).forEach((day) =>
             Object.values(day).forEach((e) => { if (num(e.weight)) seen.set(e.name.trim().toLowerCase(), e.name.trim()); })
         );
         return [...seen.values()];
-    }, [data.logs]);
+    }, [logs]);
     const [pick, setPick] = useState<string | null>(null);
     const current = pick && names.includes(pick) ? pick : names[0];
-    const h = current ? history(data.logs, current) : [];
+    const h = current ? history(logs, current) : [];
     const last10 = h.slice(-10);
     const first = h[0]?.best ?? 0;
     const now = h[h.length - 1]?.best ?? 0;

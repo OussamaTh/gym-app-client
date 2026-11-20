@@ -4,23 +4,27 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart, Stat } from '@/components/ui';
 import { C } from '@/constants/gym';
-import { dateKey, num, parseKey, useGym } from '@/store/gym-store';
+import { dateKey, num, parseKey } from '@/store/gym-store';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { setBody } from '@/store/tracker-slice';
 
 const short = (k: string) => parseKey(k).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
 
 export default function Body() {
-  const { data, setBody } = useGym();
+  const dispatch = useAppDispatch();
+  const body = useAppSelector((s) => s.tracker.body);
+  const syncError = useAppSelector((s) => s.tracker.syncError);
   const [date, setDate] = useState(dateKey(new Date()));
   const [value, setValue] = useState('');
-  const entries = Object.keys(data.body).sort();
+  const entries = Object.keys(body).sort();
   const last14 = entries.slice(-14);
-  const now = entries.length ? data.body[entries[entries.length - 1]] : 0;
-  const change = entries.length ? +(now - data.body[entries[0]]).toFixed(1) : 0;
+  const now = entries.length ? body[entries[entries.length - 1]] : 0;
+  const change = entries.length ? +(now - body[entries[0]]).toFixed(1) : 0;
 
   const save = () => {
     const kg = num(value);
-    if (!kg) return;
-    setBody(date, kg);
+    if (!kg) return; // ignore an empty or zero entry
+    dispatch(setBody({ day: date, kg }));
     setValue('');
     setDate(dateKey(new Date()));
   };
@@ -56,21 +60,21 @@ export default function Body() {
           </View>
         </View>
 
-        <BarChart values={last14.map((k) => data.body[k])} labels={last14.map(short)} floor />
+        <BarChart values={last14.map((k) => body[k])} labels={last14.map(short)} floor />
 
         <Text style={{ color: C.text, fontSize: 18, fontWeight: '800', marginTop: 22, marginBottom: 10 }}>Entries</Text>
         {entries.length === 0 && <Text style={{ color: C.muted }}>No weigh-ins yet. Add your first one above.</Text>}
         {[...entries].reverse().map((k) => (
           <Pressable
             key={k}
-            onPress={() => { setDate(k); setValue(String(data.body[k])); }}
+            onPress={() => { setDate(k); setValue(String(body[k])); }}
             style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: k === date ? 1 : 0, borderColor: C.yellow }}>
             <Text style={{ color: C.text, flex: 1 }}>{short(k)}</Text>
-            <Text style={{ color: C.yellow, fontWeight: '800', marginRight: 16 }}>{data.body[k]} kg</Text>
-            <Pressable onPress={() => setBody(k, null)} hitSlop={10}><Ionicons name="trash-outline" size={18} color={C.danger} /></Pressable>
+            <Text style={{ color: C.yellow, fontWeight: '800', marginRight: 16 }}>{body[k]} kg</Text>
+            <Pressable onPress={() => dispatch(setBody({ day: k, kg: null }))} hitSlop={10}><Ionicons name="trash-outline" size={18} color={C.danger} /></Pressable>
           </Pressable>
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView >
   );
 }

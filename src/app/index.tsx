@@ -6,10 +6,19 @@ import { Calendar } from '@/components/calendar';
 import { ExerciseCard } from '@/components/exercise-card';
 import { Stat } from '@/components/ui';
 import { C, COMMON_EXERCISES } from '@/constants/gym';
-import { dateKey, lastEntry, num, parseKey, rowsOf, useGym } from '@/store/gym-store';
+import { dateKey, lastEntry, num, parseKey, rowsOf } from '@/store/gym-store';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { addPlan, addVariation, removePlan, removeVariation } from '@/store/plan-slice';
+import { setLog } from '@/store/tracker-slice';
 
 export default function Train() {
-  const { data, addPlan, removePlan, addVariation, removeVariation, setLog } = useGym();
+  const dispatch = useAppDispatch();
+  const byDay = useAppSelector((s) => s.plan.byDay);
+  const planError = useAppSelector((s) => s.plan.error);
+  const logs = useAppSelector((s) => s.tracker.logs);
+  const user = useAppSelector((s) => s.auth.user);
+
+
   const [day, setSelected] = useState(dateKey(new Date()));
   const [name, setName] = useState('');
   const [editing, setEditing] = useState(false);
@@ -17,9 +26,9 @@ export default function Train() {
   const date = parseKey(day);
   const weekday = date.getDay();
   const weekdayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-  const plan = data.plan[weekday] ?? [];
-  const entries = data.logs[day] ?? {};
-  const marked = useMemo(() => Object.fromEntries(Object.keys(data.logs).map((k) => [k, true])), [data.logs]);
+  const plan = byDay[weekday] ?? [];
+  const entries = logs[day] ?? {};
+  const marked = useMemo(() => Object.fromEntries(Object.keys(logs).map((k) => [k, true])), [logs]);
 
   const rows = plan.flatMap(rowsOf);
   const sets = rows.reduce((a, r) => a + (parseInt(entries[r.id]?.sets) || 0), 0);
@@ -31,16 +40,24 @@ export default function Train() {
   const add = (n: string) => {
     const t = n.trim();
     if (!t) return;
-    addPlan(weekday, t);
+    dispatch(addPlan({ weekday, name: t }));
     setName('');
+  };
+  const greeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-          <Text style={{ color: C.yellow, fontSize: 34, fontWeight: '900', letterSpacing: -1 }}>GYM</Text>
-          <Text style={{ color: C.muted, marginBottom: 16 }}>Lifted Weight Progress</Text>
+          <Text style={{ color: C.yellow, fontSize: 34, fontWeight: '900', letterSpacing: -1 }}>Gym log</Text>
+          <Text style={{ color: C.muted, marginBottom: 16, marginTop: 5, fontSize: 18, fontWeight: 500 }}>
+            {greeting()}{user?.firstName ? `, ${user.firstName}` : ''}
+          </Text>
 
           <Calendar selected={day} onSelect={(k) => { setSelected(k); setEditing(false); }} marked={marked} />
 
@@ -55,15 +72,15 @@ export default function Train() {
             </Pressable>
           </View>
 
+          {planError ? <Text style={{ color: C.danger, marginBottom: 12 }}>{planError}</Text> : null}
+
           {editing ? (
             <>
-              <Text style={{ color: C.muted, marginBottom: 12 }}>
-                Exercises you add here repeat every {weekdayName}.
-              </Text>
+              <Text style={{ color: C.muted, marginBottom: 12 }}>Exercises you add here repeat every {weekdayName}.</Text>
               {plan.map((p) => (
                 <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 8 }}>
                   <Text style={{ color: C.text, fontWeight: '700', flex: 1 }}>{p.name}</Text>
-                  <Pressable onPress={() => removePlan(weekday, p.id)} hitSlop={10}>
+                  <Pressable onPress={() => dispatch(removePlan({ weekday, id: p.id }))} hitSlop={10}>
                     <Ionicons name="trash-outline" size={20} color={C.danger} />
                   </Pressable>
                 </View>
@@ -99,9 +116,7 @@ export default function Train() {
               </View>
 
               {plan.length === 0 && (
-                <Text style={{ color: C.muted }}>
-                  No exercises planned for {weekdayName}. Tap Edit plan to add some.
-                </Text>
+                <Text style={{ color: C.muted }}>No exercises planned for {weekdayName}. Tap Edit plan to add some.</Text>
               )}
 
               {plan.map((p) => (
@@ -109,10 +124,10 @@ export default function Train() {
                   key={p.id}
                   item={p}
                   entries={entries}
-                  lastFor={(n) => lastEntry(data.logs, n, day)}
-                  onChange={(row, patch) => setLog(day, row, patch)}
-                  onAddVariation={(n) => addVariation(weekday, p.id, n)}
-                  onRemoveVariation={(id) => removeVariation(weekday, p.id, id)}
+                  lastFor={(n) => lastEntry(logs, n, day)}
+                  onChange={(row, patch) => dispatch(setLog({ day, id: row.id, name: row.name, patch }))}
+                  onAddVariation={(n) => dispatch(addVariation({ weekday, planId: p.id, name: n }))}
+                  onRemoveVariation={(id) => dispatch(removeVariation({ weekday, planId: p.id, varId: id }))}
                 />
               ))}
             </>
